@@ -43,14 +43,8 @@ unsigned char _dataBuffer[10];
 
 // Static methods
 // --------------------------------------------------------------
-static int readState() {
-    pinMode(_cecPin, INPUT);
-    return digitalRead(_cecPin);
-}
-
-static void writeState(int state, int time) {
-    pinMode(_cecPin, OUTPUT);
-    digitalWrite(_cecPin, state);
+static void delayState(int time, int state) {
+    pinMode(_cecPin, state == LOW ? OUTPUT : INPUT);
     delayMicroseconds(time);
 }
 
@@ -68,44 +62,44 @@ static CecError transmitMsg(unsigned char *data, int count) {
     delayMicroseconds(5 * 2400);
 
     // Write start bit
-    writeState(LOW, 3700);
-    writeState(HIGH, 800);
+    delayState(3700, LOW);
+    delayState(800, HIGH);
 
-    if (readState() == LOW) {
+    if (digitalRead(_cecPin) == LOW) {
         return ARBITRATION_ERROR;
     }
 
     for (int i = 0; i < count; i++) {
         for (int x = 7; x >= 0; x--) {
             if (data[i] & (1 << x)) { // Bit 1
-                writeState(LOW, 600);
-                writeState(HIGH, 1800);
+                delayState(600, LOW);
+                delayState(1800, HIGH);
             } else { // Bit 0
-                writeState(LOW, 1500);
-                writeState(HIGH, 900);
+                delayState(1500, LOW);
+                delayState(900, HIGH);
             }
 
             // Arbitration takes place until the initiator address bits have been transmitted
-            if (!i && x >= 4 && readState() == LOW) {
+            if (!i && x >= 4 && digitalRead(_cecPin) == LOW) {
                 return ARBITRATION_ERROR;
             }
         }
 
         // Transmit EOM bit
         if (i == count - 1) { // Bit 1
-            writeState(LOW, 600);
-            writeState(HIGH, 1800);
+            delayState(600, LOW);
+            delayState(1800, HIGH);
         } else { // Bit 0
-            writeState(LOW, 1500);
-            writeState(HIGH, 900);
+            delayState(1500, LOW);
+            delayState(900, HIGH);
         }
 
         // Transmit ACK bit
-        writeState(LOW, 600);
-        writeState(HIGH, 450);
+        delayState(600, LOW);
+        delayState(450, HIGH);
 
         int targetAddr = _dataBuffer[0] & 0xf;
-        if (targetAddr != BROADCAST_ADDR && readState() == HIGH) {
+        if (targetAddr != BROADCAST_ADDR && digitalRead(_cecPin) == HIGH) {
             return NO_ACKNOWLEDGEMENT;
         }
 
@@ -155,7 +149,7 @@ void cec_init(int cecPin, CecDeviceType deviceType) {
 }
 
 CecError cec_readMsg(unsigned char **data, int *count, bool promiscuous) {
-    CecLogicalAddr logicalAddr = getLogicalAddr();
+    CecLogicalAddr logicalAddr = !promiscuous ? getLogicalAddr() : 0;
 
     waitState(LOW);
 
@@ -175,7 +169,7 @@ CecError cec_readMsg(unsigned char **data, int *count, bool promiscuous) {
         for (int x = 7; x >= 0; x--) {
             timer = waitState(HIGH);
             if (timer >= 400 && timer <= 800) {
-                _dataBuffer[i] += 1 << x;
+                _dataBuffer[i] |= 1 << x;
             } else if (timer < 1300 || timer > 1700) {
                 return TIMING_ERROR;
             }
@@ -207,7 +201,7 @@ CecError cec_readMsg(unsigned char **data, int *count, bool promiscuous) {
             }
 
             // Acknowledge the initiator
-            writeState(LOW, 1500);
+            delayState(LOW, 1500);
             timer = 1500;
         } else {
             timer = waitState(HIGH);

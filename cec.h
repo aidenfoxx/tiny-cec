@@ -27,6 +27,7 @@ typedef enum {
     BUFFER_OVERFLOW,
 } CecError;
 
+// Digispark runs at 3.76v
 void cec_init(int cecPin, CecDeviceType deviceType);
 CecError cec_readMsg(unsigned char **data, int *count, bool promiscuous);
 CecError cec_transmitMsg(int targetAddr, unsigned char *data, int count);
