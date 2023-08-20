@@ -185,7 +185,6 @@ CecError cec_readMsg(unsigned char **data, int *count, bool promiscuous) {
         timer = waitState(HIGH);
         if (timer >= 400 && timer <= 800) {
             eom = true;
-            break;
         }
 
         timer += waitState(LOW);
